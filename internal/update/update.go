@@ -479,6 +479,9 @@ func (c *Checker) InstallAndRestartUnattended() error { return c.installAndResta
 var ErrNeedsAdministrator = errors.New("Switcher.app is in a folder only an administrator can change; update it on this computer")
 
 func (c *Checker) installAndRestartFor(unattended bool) error {
+	if runtime.GOOS == "windows" {
+		return errors.New("automatic updates are not available in the Windows preview; install a reviewed Windows build manually")
+	}
 	c.refreshForInstall(unattended)
 	exe, err := os.Executable()
 	if err != nil {

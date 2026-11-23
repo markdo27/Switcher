@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"switcher/internal/claudecode"
 	"switcher/internal/provider"
 	"switcher/internal/store"
@@ -12,6 +13,9 @@ import (
 )
 
 func (p *Provider) ConfigureNative(st *store.Store, dataRoot string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
 	paths, err := claudecode.ResolvePaths()
 	if err != nil {
 		p.nativeError = err
@@ -52,6 +56,9 @@ func (p *Provider) BackupNativeAccount(a store.Account) error {
 	return p.Native.BackupAccount(a)
 }
 func (p *Provider) NativeStatus() claudecode.Status {
+	if runtime.GOOS == "windows" {
+		return claudecode.Status{Condition: "unavailable", Message: "Native Claude credential switching is not available in the Windows preview; use the separate proxy accounts."}
+	}
 	if p.nativeError != nil {
 		return claudecode.Status{Condition: "unavailable", Message: p.nativeError.Error()}
 	}

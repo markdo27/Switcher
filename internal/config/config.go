@@ -34,11 +34,20 @@ func Dir() string {
 		panic("switcher: cannot determine home directory: " + err.Error())
 	}
 	dir := filepath.Join(home, ".switcher")
+	if override := os.Getenv("SWITCHER_DATA_DIR"); override != "" {
+		if !filepath.IsAbs(override) {
+			panic("switcher: SWITCHER_DATA_DIR must be absolute")
+		}
+		dir = override
+	}
 	_ = os.MkdirAll(dir, 0o700)
 	// The menu bar app may have created it with default permissions; the
 	// accounts, caches and logs inside are this user's alone.
 	if info, err := os.Lstat(dir); err == nil && info.IsDir() && info.Mode().Perm()&0o077 != 0 {
 		_ = os.Chmod(dir, 0o700)
+	}
+	if err := protectDataDirectory(dir); err != nil {
+		panic("switcher: protect data directory: " + err.Error())
 	}
 	return dir
 }

@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
@@ -151,7 +150,7 @@ func WriteLogin(configPath string, tokens AuthTokens, now time.Time) (string, er
 		return "", err
 	}
 	raw = append(raw, '\n')
-	f, err := os.OpenFile(AuthPath(configPath), os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0o600)
+	f, err := openAuthFile(AuthPath(configPath), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return "", err
 	}
@@ -182,7 +181,7 @@ func RemoveLoginIfUnchanged(configPath, written string) error {
 }
 
 func readSmall(path string) ([]byte, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	f, err := openAuthFile(path, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}

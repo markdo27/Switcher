@@ -82,6 +82,9 @@ func (m *Manager) desktopPath() string {
 
 // Status reads the login items from disk; it runs nothing.
 func (m *Manager) Status() Status {
+	if m.goos == "windows" {
+		return Status{Message: "Start Switcher from the Windows shortcut; automatic login startup is not available in this preview."}
+	}
 	if m.goos != "linux" {
 		return Status{Message: "On a Mac, Start at login is in the Switcher menu."}
 	}

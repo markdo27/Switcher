@@ -766,6 +766,9 @@ func (a *API) LocalStateFields(r *http.Request) map[string]any {
 		"platform":            runtime.GOOS,
 		"handed_back":         a.handedBack(),
 	}
+	if runtime.GOOS == "windows" {
+		fields["windows_preview"] = true
+	}
 	if state, ok := a.awakeState(); ok {
 		fields["awake"] = state
 	}
@@ -1172,6 +1175,10 @@ func (a *API) handleSettingsPatch(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if runtime.GOOS == "windows" && (body.BindLAN != nil || body.TLS != nil) {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "LAN/TLS listener changes are not available in the Windows preview."})
 		return
 	}
 	var restartRequired bool

@@ -326,6 +326,10 @@ func runAddKey(c *ctx, args []string) error {
 }
 
 func openURL(target string) {
+	if runtime.GOOS == "windows" {
+		_ = exec.Command("rundll32.exe", "url.dll,FileProtocolHandler", target).Start()
+		return
+	}
 	name := "xdg-open"
 	if runtime.GOOS == "darwin" {
 		name = "open"

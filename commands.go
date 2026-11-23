@@ -7,11 +7,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"switcher/internal/autostart"
 	"switcher/internal/cli"
 	"switcher/internal/config"
+	"switcher/internal/hostproc"
 	"switcher/internal/settings"
 )
 
@@ -91,7 +91,7 @@ func startInBackground(port int) error {
 	defer logFile.Close()
 	server := exec.Command(exe, "--port", strconv.Itoa(port))
 	server.Env, server.Stdout, server.Stderr = env, logFile, logFile
-	server.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	hostproc.Detach(server)
 	if err := server.Start(); err != nil {
 		return err
 	}

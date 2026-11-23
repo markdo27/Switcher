@@ -649,6 +649,9 @@ type claudeProfile struct {
 // browser flow at all (the same trick T3 Code plays). The first import may
 // prompt the user to approve keychain access for the `security` tool.
 func (p *Provider) ImportFromKeychain(ctx context.Context) (store.Account, error) {
+	if runtime.GOOS == "windows" {
+		return store.Account{}, fmt.Errorf("native credential import is not available in the Windows preview; add a separate account through browser sign-in")
+	}
 	if p.nativeError != nil {
 		return store.Account{}, p.nativeError
 	}

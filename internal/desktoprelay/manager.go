@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"sort"
 	"strconv"
 	"switcher/internal/localpeer"
@@ -95,6 +96,9 @@ func New(cfg Config) (*Manager, error) {
 }
 
 func (m *Manager) initializeLocked(create bool) error {
+	if goruntime.GOOS == "windows" {
+		return fmt.Errorf("%w: Claude Desktop routing is not available in the Windows preview", ErrUnavailable)
+	}
 	if m.store != nil {
 		return nil
 	}

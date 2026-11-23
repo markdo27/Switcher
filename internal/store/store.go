@@ -103,6 +103,7 @@ var ErrNotFound = errors.New("account not found")
 
 // Store owns the accounts directory and the state file.
 type Store struct {
+	initErr     error
 	accountsDir string
 	statePath   string
 
@@ -115,13 +116,17 @@ type Store struct {
 // New creates a Store rooted at the given directory: accounts live in
 // <root>/accounts and routing state in <root>/state.json.
 func New(root string) *Store {
+	initErr := prepareStoreRoot(root)
 	accounts := filepath.Join(root, "accounts")
 	_ = os.MkdirAll(accounts, 0o700)
-	return &Store{accountsDir: accounts, statePath: filepath.Join(root, "state.json")}
+	return &Store{initErr: initErr, accountsDir: accounts, statePath: filepath.Join(root, "state.json")}
 }
 
 // List returns every stored account sorted by email.
 func (s *Store) List() ([]Account, error) {
+	if s.initErr != nil {
+		return nil, s.initErr
+	}
 	info, err := os.Stat(s.accountsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -147,7 +152,7 @@ func (s *Store) List() ([]Account, error) {
 		}
 	}
 	s.listMu.Lock()
-	if s.listCache != nil && s.listMtime == mtime && s.listFilesNewest == newest {
+	if cacheAccounts && s.listCache != nil && s.listMtime == mtime && s.listFilesNewest == newest {
 		out := make([]Account, len(s.listCache))
 		copy(out, s.listCache)
 		s.listMu.Unlock()
@@ -196,6 +201,9 @@ func validIDCharacter(id string) bool {
 
 // Get returns one account by ID.
 func (s *Store) Get(id string) (Account, error) {
+	if s.initErr != nil {
+		return Account{}, s.initErr
+	}
 	if !validIDCharacter(id) {
 		return Account{}, fmt.Errorf("invalid account id %q", id)
 	}
@@ -211,6 +219,9 @@ func (s *Store) Get(id string) (Account, error) {
 
 // Save writes an account atomically.
 func (s *Store) Save(a Account) error {
+	if s.initErr != nil {
+		return s.initErr
+	}
 	defer s.invalidateList()
 	if a.ID == "" {
 		return errors.New("save account: empty id")
@@ -225,6 +236,9 @@ func (s *Store) Save(a Account) error {
 // Delete removes an account file. Removing a non-existent account is not an
 // error so callers can treat delete as idempotent.
 func (s *Store) Delete(id string) error {
+	if s.initErr != nil {
+		return s.initErr
+	}
 	defer s.invalidateList()
 	if err := os.Remove(s.accountPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("delete account: %w", err)
@@ -234,7 +248,10 @@ func (s *Store) Delete(id string) error {
 
 // LoadState reads the routing state; a missing file yields the zero state.
 func (s *Store) LoadState() (State, error) {
-	raw, err := os.ReadFile(s.statePath)
+	if s.initErr != nil {
+		return State{}, s.initErr
+	}
+	raw, err := readStoreFile(s.statePath)
 	if errors.Is(err, os.ErrNotExist) {
 		return State{Active: map[string]string{}, Exhausted: map[string]int64{}}, nil
 	}
@@ -268,6 +285,9 @@ func (s *Store) LoadState() (State, error) {
 
 // SaveState writes the routing state atomically.
 func (s *Store) SaveState(st State) error {
+	if s.initErr != nil {
+		return s.initErr
+	}
 	raw, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode state: %w", err)
@@ -283,7 +303,7 @@ func (s *Store) accountPath(id string) string {
 }
 
 func readJSON(path string, v any) error {
-	raw, err := os.ReadFile(path)
+	raw, err := readStoreFile(path)
 	if err != nil {
 		return err
 	}
@@ -304,7 +324,7 @@ func (s *Store) CleanTemp() {
 		}
 		for _, entry := range entries {
 			info, err := entry.Info()
-			if err != nil || !info.Mode().IsRegular() || !strings.HasSuffix(entry.Name(), ".tmp") || !strings.Contains(entry.Name(), ".json") {
+			if err != nil || !info.Mode().IsRegular() || !strings.HasSuffix(entry.Name(), ".tmp") || !storeTemporaryName(entry.Name()) {
 				continue
 			}
 			if time.Since(info.ModTime()) > time.Hour {
@@ -319,43 +339,6 @@ func (s *Store) CleanTemp() {
 // already there (whatever it was, and whatever mode it had), takes the
 // place of the old one, and the folder is flushed so the change survives a
 // crash.
-func writeAtomic(path string, raw []byte, mode os.FileMode) error {
-	name := filepath.Base(path)
-	f, err := os.CreateTemp(filepath.Dir(path), name+".*.tmp")
-	if err != nil {
-		return fmt.Errorf("write %s: %w", name, err)
-	}
-	tmp := f.Name()
-	fail := func(step string, err error) error {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return fmt.Errorf("%s %s: %w", step, name, err)
-	}
-	if err := f.Chmod(mode); err != nil {
-		return fail("write", err)
-	}
-	if _, err := f.Write(raw); err != nil {
-		return fail("write", err)
-	}
-	// Sync before rename so a crash never leaves a truncated file behind.
-	if err := f.Sync(); err != nil {
-		return fail("sync", err)
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("close %s: %w", name, err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("rename %s: %w", name, err)
-	}
-	if dir, err := os.Open(filepath.Dir(path)); err == nil {
-		_ = dir.Sync()
-		_ = dir.Close()
-	}
-	return nil
-}
-
 // invalidateList drops the decoded account cache so the next List re-reads.
 func (s *Store) invalidateList() {
 	s.listMu.Lock()

@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -172,7 +173,14 @@ func runOpen(c *ctx, args []string) error {
 		return err
 	}
 	if _, _, err := c.state(); err != nil {
-		return err
+		if runtime.GOOS != "windows" || !errors.Is(err, errNotRunning) {
+			return err
+		}
+		startup := *c
+		startup.out = io.Discard
+		if err := runStart(&startup, nil); err != nil {
+			return err
+		}
 	}
 	if c.opt.Getenv("SSH_CONNECTION") != "" {
 		c.result(map[string]string{"url": c.url}, "The dashboard only opens on the computer that runs Switcher; from here, forward it with ssh -L 8787:127.0.0.1:8787 and open "+c.url)

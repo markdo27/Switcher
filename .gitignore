@@ -2,3 +2,5 @@ switcher
 dist/
 *.test
 menu-shots/
+
+*.exe

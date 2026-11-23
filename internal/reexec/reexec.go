@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Package reexec restarts Switcher in place without letting go of its port.
 //
 // Switcher restarts itself after an update and after a change to its

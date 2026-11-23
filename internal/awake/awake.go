@@ -22,7 +22,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 )
@@ -564,12 +563,4 @@ func (m *Manager) saveLockedWith(rec record) {
 	}
 }
 
-func newSystem() system {
-	switch runtime.GOOS {
-	case "darwin":
-		return darwinSystem{}
-	case "linux":
-		return newLinuxSystem()
-	}
-	return nil
-}
+func newSystem() system { return platformSystem() }

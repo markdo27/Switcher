@@ -1,3 +1,5 @@
+> **Windows experimental fork:** see [Windows setup and limitations](docs/windows.md).
+
 <p align="center">
   <img src="docs/screenshots/icon.png" width="112" alt="Switcher">
 </p>

@@ -74,6 +74,8 @@ import (
 
 // version is overridable at build time: -ldflags "-X main.version=x.y.z".
 var version = "dev"
+var quitRequested = make(chan struct{})
+var quitOnce sync.Once
 
 const defaultDesktopRelayPort = 8789
 
@@ -502,7 +504,7 @@ func run(port, desktopRelayPort int) {
 		MachineName:  remote.MachineName(),
 		// The tray's Quit Switcher: stop as on SIGTERM, which also tells
 		// the login service not to restart it.
-		Quit: func() { _ = syscall.Kill(os.Getpid(), syscall.SIGTERM) },
+		Quit: func() { quitOnce.Do(func() { close(quitRequested) }) },
 	}
 	// The paired computers' latest usage, kept in memory only, is written
 	// before an update or a change of listeners replaces this process.
@@ -709,6 +711,13 @@ func run(port, desktopRelayPort int) {
 		}
 	}
 	shutdown, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-quitRequested:
+			stopSignals()
+		case <-shutdown.Done():
+		}
+	}()
 	defer stopSignals()
 	serveErrors := make(chan error, 1)
 	go func() { serveErrors <- server.ServeAll(listeners) }()

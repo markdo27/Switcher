@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"switcher/internal/hostproc"
 	"switcher/internal/reexec"
-	"syscall"
 	"time"
 )
 
@@ -244,7 +244,7 @@ func systemAppOps() appOps {
 			// ditto keeps the bundle's symlinks, modes and signature intact.
 			return run(ctx, "/usr/bin/ditto", from, to)
 		},
-		writable:  func(dir string) bool { return syscall.Access(dir, 0x2) == nil },
+		writable:  func(dir string) bool { return hostproc.Writable(dir) },
 		rename:    os.Rename,
 		removeAll: os.RemoveAll,
 		adminSwap: adminSwap,
@@ -327,7 +327,7 @@ exec /usr/bin/open "$bundle"
 func relaunchApp(bundle string, menuPID, serverPID int) error {
 	cmd := exec.Command("/bin/sh", "-c", relaunchScript, "switcher-relaunch", bundle,
 		strconv.Itoa(menuPID), strconv.Itoa(serverPID))
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	hostproc.Detach(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
